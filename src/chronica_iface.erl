@@ -19,11 +19,12 @@ generate_app_iface_modules(App, Rules) ->
             _ -> []
         end,
 
+    AppTag = erlang:list_to_atom("app_" ++ erlang:atom_to_list(App)),
     lists:foldl(
         fun (M, Acc) ->
             ?INT_DBG("Generating iface module for ~p", [M]),
             NewAcc =
-                case generate_iface_module(M, Rules) of
+                case generate_iface_module(AppTag, M, Rules) of
                     undefined ->
                         ?INT_DBG("not generated", []),
                         Acc;
@@ -34,7 +35,7 @@ generate_app_iface_modules(App, Rules) ->
             NewAcc
         end, [], AppModules).
 
-generate_iface_module(ModuleName, Rules) ->
+generate_iface_module(AppTag, ModuleName, Rules) ->
     case (catch ModuleName:get_log_tags()) of
         TagList when is_list(TagList) ->
             timer:sleep(5), % reduce overload
@@ -45,20 +46,22 @@ generate_iface_module(ModuleName, Rules) ->
                 ast("(Priority, Key, Module, Line, File, Function, Format, Args, Self, Now) ->
                         chronica_core:sync_fast_log({fast_log_message, Priority, Format, Args, Module, Line, File, Function, Self, Now, @IfaceName, Key}).", 0),
             Rules2 = get_appropriate_flows_exclusion(ModuleName, Rules),
+            ModTag = erlang:list_to_atom("mod_" ++ erlang:atom_to_list(ModuleName)),
+            TagList1 = lists:usort([AppTag, ModuleName | TagList]),
 
             Flows = [
                 {Tags2, [{Priority, get_appropriate_flows(Tags2, Priority, Rules2)} || Priority <- [?P_ERROR, ?P_WARNING, ?P_INFO, ?P_TRACE, ?P_DEBUG]]}
 
                 ||
 
-                Tags2 <- TagList
+                Tags2 <- TagList1
             ],
-            Clauses = generate_clauses(TagList, Flows) ++ [DefaultClause],
+            Clauses = generate_clauses(TagList1, Flows) ++ [DefaultClause],
             AST2 = pt_lib:add_function(AST, ast("log_fast [...$Clauses...].", 0)),
 
             DefaultClause2 = ast("([], Priority) -> not_found.", 0),
 
-            Clauses2 = generate_clauses_for_get_flows(TagList, Flows) ++ [DefaultClause2],
+            Clauses2 = generate_clauses_for_get_flows(TagList1, Flows) ++ [DefaultClause2],
             AST3 = pt_lib:add_function(AST2, ast("get_flows [...$Clauses2...].", 0)),
             case compile:forms(AST3, [binary, return_errors]) of
                 {ok, IfaceName, Binary} ->

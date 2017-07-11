@@ -21,6 +21,8 @@
     add_application/1,
     add_rule/4,
     add_rule/5,
+    add_rule_module/3,
+    add_rule_app/3,
     add_tcp_connection/5,
     clear_log/1,
     free_resources/0,
@@ -342,6 +344,32 @@ handle_call({add_rule, NameRule, Mask, Priority, Flow, TickFun}, _From,
     NewRule = #chronica_rule{id = NameRule, mask = Mask,
                 priority = Priority, flow_ids = [Flow], in_work = true},
     case catch true_load_config(State, Config#chronica_config{rules = [NewRule|Rules]}, TickFun) of
+        {ok, NewState} -> {reply, ok, NewState};
+        {error, NewState, Reason} -> {reply, {error, Reason}, NewState};
+        {stop, Reason} -> {stop, Reason, {error, Reason}, State};
+        Err -> {stop, Err, State}
+    end;
+
+handle_call({add_rule_module, Module, Priority, Flow}, _From,
+            State = #config_state{loaded_config = Config = #chronica_config{rules = Rules}}) ->
+    Mask = "mod_" ++ erlang:atom_to_list(Module),
+    NameRule = erlang:list_to_atom("runtime_rule_for_" ++ Mask),
+    NewRule = #chronica_rule{id = NameRule, mask = Mask,
+                priority = Priority, flow_ids = [Flow], in_work = true},
+    case catch true_load_config(State, Config#chronica_config{rules = [NewRule|Rules]}) of
+        {ok, NewState} -> {reply, ok, NewState};
+        {error, NewState, Reason} -> {reply, {error, Reason}, NewState};
+        {stop, Reason} -> {stop, Reason, {error, Reason}, State};
+        Err -> {stop, Err, State}
+    end;
+
+handle_call({add_rule_app, App, Priority, Flow}, _From,
+            State = #config_state{loaded_config = Config = #chronica_config{rules = Rules}}) ->
+    Mask = "app_" ++ erlang:atom_to_list(App),
+    NameRule = erlang:list_to_atom("runtime_rule_for_" ++ Mask),
+    NewRule = #chronica_rule{id = NameRule, mask = Mask,
+                priority = Priority, flow_ids = [Flow], in_work = true},
+    case catch true_load_config(State, Config#chronica_config{rules = [NewRule|Rules]}) of
         {ok, NewState} -> {reply, ok, NewState};
         {error, NewState, Reason} -> {reply, {error, Reason}, NewState};
         {stop, Reason} -> {stop, Reason, {error, Reason}, State};
@@ -702,6 +730,12 @@ add_rule(NameRule, Mask, Priority, Flow) when is_atom(NameRule) ->
     Priority :: chronica_priority(), Flow :: atom(), Fun :: fun(() -> any())) -> ok | {error, _Reason}.
 add_rule(NameRule, Mask, Priority, Flow, Fun) when is_atom(NameRule) ->
     gen_server:call(?MODULE, {add_rule, NameRule, Mask, Priority, Flow, Fun}, infinity).
+
+add_rule_module(Module, Priority, Flow) ->
+    gen_server:call(?MODULE, {add_rule_module, Module, Priority, Flow}, infinity).
+
+add_rule_app(App, Priority, Flow) ->
+    gen_server:call(?MODULE, {add_rule_app, Module, Priority, Flow}, infinity).
 
 generate_iface_module(Module) ->
     gen_server:call(?MODULE, {generate_iface_module, Module}).

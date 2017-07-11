@@ -24,6 +24,9 @@
     register/0,
     load_config/1,
     add_rule/4,
+    add_rule/5,
+    add_rule_app/3,
+    add_rule_module/3,
     generate_iface_module/1,
     get_tty_config/0
     ]).
@@ -54,6 +57,18 @@ deactivate() ->
     Priority :: chronica_priority(), Flow :: atom()) -> ok | {error, _Reason}.
 add_rule(NameRule, Mask, Priority, Flow) ->
     run_try_manager(add_rule, [NameRule, Mask, Priority, Flow]).
+
+-spec add_rule(NameRule :: atom(), Mask :: nonempty_string(),
+    Priority :: chronica_priority(), Flow :: atom(), Fun :: fun(() -> any())) ->
+        ok | {error, _Reason}.
+add_rule(NameRule, Mask, Priority, Flow, Fun) ->
+    run_try_manager(add_rule, [NameRule, Mask, Priority, Flow, Fun]).
+
+add_rule_app(App, Priority, Flow) ->
+    run_try_manager(add_rule_app, [App, Priority, Flow]).
+
+add_rule_module(Module, Priority, Flow) ->
+    run_try_manager(add_rule_module, [Module, Priority, Flow]).
 
 clear_log(FlowId) ->
     run_try_manager(clear_log, [FlowId]).
